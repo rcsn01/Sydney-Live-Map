@@ -1,0 +1,19 @@
+html, body, #root { height: 100%; margin: 0; font-family: system-ui, sans-serif; }
+.layout { display: flex; height: 100%; }
+.sidebar { width: 340px; background: #111; color: #eee; padding: 12px; box-sizing: border-box; overflow-y: auto; }
+.sidebar h1 { margin-top: 0; font-size: 1.4rem; }
+.list { margin-top: 8px; }
+.list-item { display: flex; justify-content: space-between; padding: 6px 8px; background: #1e1e1e; border-radius: 4px; margin-bottom: 4px; cursor: pointer; align-items: center; }
+.list-item:hover { background: #2a2a2a; }
+.list-item.active { outline: 2px solid #ff8800; }
+.pill { background: #333; padding: 2px 6px; border-radius: 12px; font-size: 0.7rem; }
+.map-container { flex: 1; }
+.details { margin-top: 12px; }
+.chart { display: flex; gap: 2px; align-items: flex-end; height: 120px; background: #222; padding: 4px; border-radius: 4px; }
+.bar { flex: 1; background: linear-gradient(#3388ff, #112a44); border-radius: 2px 2px 0 0; }
+
+/* Pulsing marker animation */
+.pulse { animation: pulse 1.5s ease-in-out infinite; transform-origin: center; }
+@keyframes pulse { 0% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.25); opacity: 0.5; } 100% { transform: scale(1); opacity: 0.9; } }
+
+input[type=range] { width: 100%; }
