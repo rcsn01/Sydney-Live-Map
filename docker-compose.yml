@@ -8,8 +8,9 @@ services:
       POSTGRES_DB: sydmap
     ports:
       - "5433:5432"
+    # Healthcheck previously targeted default DB name (dev) which wasn't created, causing noisy FATAL logs.
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "dev"]
+      test: ["CMD-SHELL", "pg_isready -U dev -d sydmap"]
       interval: 5s
       retries: 5
   backend:
