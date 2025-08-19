@@ -45,6 +45,7 @@ Services:
 * Frontend: http://localhost:5173
 * Backend (API docs): http://localhost:8000/docs
 * Postgres: port 5433 (inside: 5432)
+Visit http://localhost:8000/api/health and http://localhost:8000/api/locations to verify API still fine.
 
 First startup auto-seeds mock data.
 
