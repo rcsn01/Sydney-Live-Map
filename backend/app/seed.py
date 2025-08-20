@@ -1,6 +1,7 @@
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import random
+import math
 from sqlalchemy.orm import Session
 from . import models
 
@@ -63,6 +64,15 @@ SEED_LOCATIONS = [
 
 
 def seed_data(session: Session, hours: int = 24):
+    """Seed synthetic data with higher variance across locations & temporal patterns.
+
+    Variation techniques:
+      * Per-location deterministic scaling (based on name hash & known hotspots list)
+      * Distinct pedestrian vs traffic diurnal curves (+ added shoulder / late-night noise)
+      * Weekend modulation (pedestrian leisure boost, traffic commuter drop)
+      * Random hourly noise with location-specific volatility
+      * Occasional spike events (rare surges) for major hubs
+    """
     if session.query(models.Location).count() > 0:
         return
 
@@ -73,26 +83,118 @@ def seed_data(session: Session, hours: int = 24):
         session.add(location)
         session.flush()  # assign id
 
+        ped_mult, traffic_mult, volatility = location_scalers(location.name, location.type)
+
         for h in range(hours, 0, -1):
             ts = now - timedelta(hours=h)
-            # Base patterns: pedestrian peak around 12-18h, traffic morning/afternoon peaks
             hour = ts.hour
-            ped_base = 200 + 800 * gaussian_peak(hour, 13, 5)
-            traffic_base = 300 + 1200 * (gaussian_peak(hour, 8, 2) + gaussian_peak(hour, 17, 2))
-            if location.type == 'traffic':
-                ped = int(ped_base * 0.3 + random.uniform(-20, 20))
-                traffic = int(traffic_base * 1.0 + random.uniform(-50, 50))
-            else:
-                ped = int(ped_base * 1.0 + random.uniform(-50, 50))
-                traffic = int(traffic_base * 0.5 + random.uniform(-40, 40))
+            weekday = ts.weekday()  # 0=Mon .. 6=Sun
+
+            # Diurnal base curves (0..1)
+            ped_curve = (
+                0.10
+                + 0.55 * gaussian_peak(hour, 13, 3.5)  # lunch
+                + 0.40 * gaussian_peak(hour, 18, 3.0)  # after work / evening
+                + 0.18 * gaussian_peak(hour, 8, 2.5)   # morning ramp
+                + 0.08 * gaussian_peak(hour, 22, 2.0)  # late evening leisure
+            )
+            traffic_curve = (
+                0.12
+                + 0.80 * gaussian_peak(hour, 8, 1.8)   # AM peak
+                + 0.70 * gaussian_peak(hour, 17, 2.0)  # PM peak
+                + 0.20 * gaussian_peak(hour, 12, 3.5)  # mid-day commercial
+            )
+
+            # Base absolute scales (these will be modulated):
+            base_ped = 120 + 1300 * min(ped_curve, 1.0)
+            base_traffic = 200 + 2000 * min(traffic_curve, 1.0)
+
+            # Apply per-location deterministic multipliers
+            ped_val = base_ped * ped_mult
+            traffic_val = base_traffic * traffic_mult
+
+            # Weekend adjustments: more leisure pedestrians, less commuter traffic
+            if weekday >= 5:  # Sat / Sun
+                ped_val *= 1.15 if 10 <= hour <= 20 else 0.9
+                traffic_val *= 0.7 if 7 <= hour <= 10 or 16 <= hour <= 19 else 0.85
+
+            # Late night quiet hours damping
+            if hour < 5:
+                ped_val *= 0.4
+                traffic_val *= 0.55
+
+            # Location volatility (controlled randomness)
+            noise_scale_ped = ped_val * 0.08 * volatility
+            noise_scale_traffic = traffic_val * 0.06 * volatility
+            ped_val += random.gauss(0, noise_scale_ped)
+            traffic_val += random.gauss(0, noise_scale_traffic)
+
+            # Rare surge events for key hubs (simulate event / crowd) ~1% chance per hour
+            if is_major_hub(location.name) and random.random() < 0.01:
+                surge_factor = random.uniform(1.4, 2.2)
+                ped_val *= surge_factor
+                # traffic might modestly increase but not as much
+                traffic_val *= 1 + (surge_factor - 1) * 0.35
+
+            ped = int(max(ped_val, 0))
+            traffic = int(max(traffic_val, 0))
+
             metric = models.Metric(
                 location_id=location.id,
                 timestamp=ts,
-                pedestrian_count=max(ped, 0),
-                traffic_count=max(traffic, 0),
+                pedestrian_count=ped,
+                traffic_count=traffic,
             )
             session.add(metric)
     session.commit()
+
+
+def location_scalers(name: str, loc_type: str) -> tuple[float, float, float]:
+    """Return (ped_scale, traffic_scale, volatility) for a location.
+    Deterministic via hashing for reproducibility.
+    """
+    base_hotspots = {
+        'Central Station': (1.8, 0.9, 1.2),
+        'Town Hall': (1.6, 0.8, 1.15),
+        'Wynyard Station': (1.55, 0.85, 1.1),
+        'Circular Quay': (1.5, 0.75, 1.05),
+        'Sydney Opera House': (1.7, 0.5, 1.25),
+        'Harbour Bridge South': (0.7, 1.5, 1.0),
+        'Harbour Bridge North': (0.65, 1.45, 0.95),
+        'Anzac Bridge East': (0.4, 1.6, 0.9),
+        'Western Distributor Ramp': (0.35, 1.55, 0.9),
+    }
+    if name in base_hotspots:
+        return base_hotspots[name]
+
+    # Hash-based pseudo random but stable factors
+    h = pseudo_hash(name)
+    # Ped scale range differs by type
+    if loc_type == 'pedestrian':
+        ped_scale = 0.6 + (h % 37) / 37 * 1.0   # 0.6 .. 1.6
+        traffic_scale = 0.3 + (h // 37 % 29) / 29 * 0.6  # 0.3 .. 0.9
+    else:
+        ped_scale = 0.3 + (h % 41) / 41 * 0.6   # 0.3 .. 0.9
+        traffic_scale = 0.7 + (h // 41 % 31) / 31 * 1.0  # 0.7 .. 1.7
+    volatility = 0.9 + ((h // 100) % 23) / 23 * 0.5  # 0.9 .. 1.4
+    return ped_scale, traffic_scale, volatility
+
+
+def is_major_hub(name: str) -> bool:
+    keywords = [
+        'Station', 'Opera House', 'Town Hall', 'Central', 'Wynyard', 'Harbour Bridge',
+        'Anzac', 'SCG', 'Casino', 'USYD', 'UTS'
+    ]
+    lowered = name.lower()
+    return any(k.lower() in lowered for k in keywords)
+
+
+def pseudo_hash(s: str) -> int:
+    # Simple deterministic hash (avoid importing hashlib for lightweight seeding)
+    h = 0
+    for ch in s:
+        h = (h * 131 + ord(ch)) & 0xFFFFFFFF
+    return h
 
 
 def gaussian_peak(x: int, mean: float, sigma: float) -> float:

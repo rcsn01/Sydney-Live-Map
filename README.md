@@ -38,6 +38,7 @@ Prereqs: Docker + Docker Compose.
 
 ```bash
 docker compose up --build
+docker compose down -v
 ```
 
 Services:
