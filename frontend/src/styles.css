@@ -17,3 +17,6 @@ html, body, #root { height: 100%; margin: 0; font-family: system-ui, sans-serif;
 @keyframes markerFade { 0% { opacity: 0.15; } 40% { opacity: 0.7; } 70% { opacity: 1; } 100% { opacity: 0.15; } }
 
 input[type=range] { width: 100%; }
+
+.time-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.time-display { min-width: 160px; font-size: 0.9rem; color: #ddd; text-align: right; }

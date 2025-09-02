@@ -63,7 +63,7 @@ SEED_LOCATIONS = [
 ]
 
 
-def seed_data(session: Session, hours: int = 24):
+def seed_data(session: Session, hours: int = 24 * 7):
     """Seed synthetic data with higher variance across locations & temporal patterns.
 
     Variation techniques:
