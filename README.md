@@ -59,6 +59,9 @@ First startup auto-seeds mock data.
 1. Create & activate a virtual environment (Python 3.11+ recommended)
 2. Install deps:
 	```bash
+	python -m venv .venv
+	.\.venv\Scripts\activate
+	python -m pip install --upgrade pip
 	pip install -r backend/requirements.txt
 	```
 3. Start a local Postgres (or use Docker):
