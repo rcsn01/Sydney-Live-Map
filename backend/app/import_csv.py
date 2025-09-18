@@ -6,8 +6,8 @@ from __future__ import annotations
  - metrics: CSV with columns timestamp, count (or pedestrian_count/traffic_count) and either location_id or location_name
 
 Usage examples:
-python tools/import_csv.py --mode locations --file "file path" --db-url postgresql+psycopg://dev:dev@localhost:5433/sydmap
-python tools/import_csv.py --mode metrics --file "file path" --db-url postgresql+psycopg://dev:dev@localhost:5433/sydmap
+python backend/app/import_csv.py --mode locations --file "file path" --db-url postgresql+psycopg://dev:dev@localhost:5433/sydmap
+python backend/app/import_csv.py --mode metrics --file "file path" --db-url postgresql+psycopg://dev:dev@localhost:5433/sydmap
 """
 import argparse
 import csv
@@ -26,7 +26,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 # Now use absolute imports
 from app import models
-
 
 def _get_field(row: dict, *names: str) -> str:
     """Return the first non-empty string value from row for the provided names, or empty string."""
