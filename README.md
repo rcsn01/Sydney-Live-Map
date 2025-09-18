@@ -60,7 +60,8 @@ First startup auto-seeds mock data.
 2. Install deps:
 	```bash
 	python -m venv .venv
-	.\.venv\Scripts\activate
+	.\.venv\Scripts\activate (windows)
+	source .venv/bin/activate (mac)
 	python -m pip install --upgrade pip
 	pip install -r backend/requirements.txt
 	```
