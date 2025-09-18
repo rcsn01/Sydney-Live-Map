@@ -17,8 +17,7 @@ class LocationWithIntensity(LocationBase):
 
 class MetricPoint(BaseModel):
     timestamp: datetime
-    pedestrian_count: int
-    traffic_count: int
+    count: int
 
     class Config:
         from_attributes = True

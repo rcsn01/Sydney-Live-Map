@@ -42,13 +42,11 @@ def latest_intensity_for_locations(session: Session, at: datetime | None = None)
 
     results = []
     for loc, metric in rows:
-        intensity = compute_intensity(metric.pedestrian_count, metric.traffic_count)
+        intensity = compute_intensity(metric.count)
         results.append((loc, intensity))
     return results
 
-def compute_intensity(ped_count: int, traffic_count: int) -> float:
-    # Simple heuristic: normalized sum
-    # Assume rough typical maxima for scaling
-    ped_norm = min(ped_count / 1000.0, 1.0)
-    traffic_norm = min(traffic_count / 2000.0, 1.0)
-    return round((ped_norm * 0.6 + traffic_norm * 0.4), 3)
+def compute_intensity(count: int) -> float:
+    # Simple heuristic: normalize against a rough maximum and clamp
+    norm = min(count / 2000.0, 1.0)
+    return round(norm, 3)

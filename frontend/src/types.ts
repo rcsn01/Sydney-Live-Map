@@ -12,6 +12,5 @@ export interface LocationWithIntensity extends Location {
 
 export interface MetricPoint {
   timestamp: string;
-  pedestrian_count: number;
-  traffic_count: number;
+  count: number;
 }

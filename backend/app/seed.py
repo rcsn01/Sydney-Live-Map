@@ -138,12 +138,10 @@ def seed_data(session: Session, hours: int = 24 * 7):
 
             ped = int(max(ped_val, 0))
             traffic = int(max(traffic_val, 0))
-
             metric = models.Metric(
                 location_id=location.id,
                 timestamp=ts,
-                pedestrian_count=ped,
-                traffic_count=traffic,
+                count=ped + traffic,
             )
             session.add(metric)
     session.commit()

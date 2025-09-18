@@ -17,14 +17,11 @@ class Location(Base):
 
 class Metric(Base):
     __tablename__ = "metrics"
-    __table_args__ = (
-        UniqueConstraint('location_id', 'timestamp', name='uq_location_time'),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     location_id: Mapped[int] = mapped_column(ForeignKey('locations.id', ondelete='CASCADE'), index=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    pedestrian_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    traffic_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Single unified count field (previously pedestrian_count + traffic_count)
+    count: Mapped[int] = mapped_column(Integer, nullable=False)
 
     location: Mapped[Location] = relationship(back_populates="metrics")

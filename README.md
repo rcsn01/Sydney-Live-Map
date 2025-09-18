@@ -52,6 +52,53 @@ First startup auto-seeds mock data.
 
 ---
 
+## Importing traffic CSVs
+
+If you have raw traffic CSVs (for example City of Sydney / NSW traffic extracts) with columns like:
+
+```
+the_geom	station_id	road_name	suburb	cardinal_direction_name	classification_type	year	period	traffic_count	wgs84_latitude	wgs84_longitude
+```
+
+Use the included transformer script to convert them into the simple CSV formats accepted by the backend importer.
+
+1. Transform the raw file into `locations.csv` and `metrics.csv`:
+
+```powershell
+python tools\TrafficVolumeViewer_Transform.py C:\path\to\raw_traffic.tsv
+```
+
+The transformer will write two files next to the input file (or in the same folder):
+
+- `locations.csv` with headers: `name,latitude,longitude,type`
+- `metrics.csv` with headers: `timestamp,pedestrian_count,traffic_count,location_name`
+
+Notes about the mapping the transformer performs:
+- `name` is formed as `station_id - road_name` to keep a stable, searchable identifier.
+- `latitude` / `longitude` come from `wgs84_latitude` / `wgs84_longitude`.
+- `type` comes from `classification_type` and is normalized to `all_vehicles`, `light_vehicles`, or `heavy_vehicles`.
+- `timestamp` is created from the `year` field (first day of the year at UTC midnight). If `year` is missing or invalid the transformer uses the current UTC time.
+- `pedestrian_count` is set to `0` because the source file contains only vehicle counts; change this if you have pedestrian counts.
+
+2. Import locations into the database (creates or updates locations by name):
+
+```powershell
+python -m backend\app\import_csv.py --mode locations --file locations.csv --update
+```
+
+3. Import metrics (match locations by `name` created in step 1):
+
+```powershell
+python backend\app\import_csv.py --mode metrics --file metrics.csv --by name
+```
+
+Aggregation guidance:
+- The sample raw CSV often includes one row per vehicle classification (ALL / LIGHT / HEAVY) for a station/year. If you want a single metric per station/year, aggregate `traffic_count` across classification rows for the same `station_id` and `year` before importing. The transformer writes one metric row per input row; you can modify it to sum values if you prefer aggregated import.
+
+Schema note:
+- The current `Location` model doesn't store the original `station_id` separately. The transformer includes `station_id` in the `name` so you can locate rows later by name. If you'd like a dedicated `external_id` column in the DB, I can add that and update the importer.
+
+
 ## Local Dev (Without Docker)
 
 ### Backend
