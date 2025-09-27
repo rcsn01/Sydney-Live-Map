@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchLocations, fetchMetrics, fetchLocation } from './api';
+import { fetchLocations, fetchMetrics, fetchLocation, fetchLocationTypes } from './api';
 import { LocationWithIntensity, MetricPoint, Location } from './types';
 import LocationDetails from './components/LocationDetails';
 import MapView from './components/MapView';
@@ -8,6 +8,10 @@ const App: React.FC = () => {
   const [locations, setLocations] = useState<LocationWithIntensity[]>([]);
   const [selectedId, setSelectedId] = useState<number | undefined>();
   const [metrics, setMetrics] = useState<MetricPoint[]>([]);
+  const [visibleIds, setVisibleIds] = useState<number[]>([]);
+  const [availableTypes, setAvailableTypes] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [perLocationMetrics, setPerLocationMetrics] = useState<Record<number, MetricPoint[]>>({});
   const [selectedName, setSelectedName] = useState<string>('');
   const [snapshot, setSnapshot] = useState<string>('');
   const [snapshotOffset, setSnapshotOffset] = useState<number>(0); // hours ago
@@ -29,13 +33,72 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [snapshot]);
 
-  // Load metrics for selected
+  // Load available types once
+  useEffect(() => {
+    import('./api').then(mod => mod.fetchLocationTypes()).then(setAvailableTypes).catch(console.error);
+  }, []);
+
+  // Load metrics for selected; re-run when selectedId OR visibleIds changes so we fetch
+  // metrics when a selected location becomes visible after a pan/zoom.
   useEffect(() => {
     if (selectedId != null) {
       fetchLocation(selectedId).then(l => setSelectedName(l.name));
-      fetchMetrics(selectedId, 24).then(setMetrics);
+      // Only show/fetch metrics if the selected location is visible AND its type is selected
+      const selLoc = locations.find(l => l.id === selectedId);
+      if (selLoc && visibleIds.includes(selectedId) && selectedTypes.includes(selLoc.type)) {
+        // Prefer cached per-location metrics if available
+        const cached = perLocationMetrics[selectedId];
+        if (cached) setMetrics(cached);
+        else fetchMetrics(selectedId, 24).then(setMetrics).catch(console.error);
+      } else {
+        // Clear metrics when selection is not visible or its type not selected
+        setMetrics([]);
+      }
     }
-  }, [selectedId]);
+  }, [selectedId, visibleIds]);
+
+  // Whenever visibleIds or selectedTypes change, fetch metrics for each visible location that matches selected types.
+  useEffect(() => {
+    // If no types selected, nothing to fetch and clear cache
+    if (selectedTypes.length === 0) {
+      setPerLocationMetrics({});
+      setMetrics([]);
+      return;
+    }
+
+    // compute visible locations that match the selected types
+    const visibleLocations = locations.filter(l => visibleIds.includes(l.id) && selectedTypes.includes(l.type));
+
+    // Build a set for quick lookup
+    const wantedIds = new Set(visibleLocations.map(l => l.id));
+
+    // Remove cached metrics for locations that are no longer wanted
+    setPerLocationMetrics(prev => {
+      const copy: Record<number, MetricPoint[]> = { ...prev };
+      for (const idStr of Object.keys(copy)) {
+        const id = Number(idStr);
+        if (!wantedIds.has(id)) {
+          delete copy[id];
+        }
+      }
+      return copy;
+    });
+
+    // Fetch metrics for each wanted location (if not already cached)
+    visibleLocations.forEach(loc => {
+      // Use functional state read to avoid stale closure over perLocationMetrics
+      setPerLocationMetrics(prev => {
+        if (prev[loc.id]) return prev; // already have it
+        // Kick off async fetch and optimistically return prev; fetched result will update state
+        fetchMetrics(loc.id, 24).then(data => {
+          setPerLocationMetrics(p => ({ ...p, [loc.id]: data }));
+        }).catch(err => {
+          console.error('failed to fetch metrics for location', loc.id, err);
+        });
+        return prev;
+      });
+    });
+  }, [visibleIds, selectedTypes, locations]);
 
   return (
     <div className="layout">
@@ -55,6 +118,23 @@ const App: React.FC = () => {
         {/* chart is rendered inside LocationDetails when a location is selected */}
 
         <div className="list">
+          <div style={{ marginBottom: 8 }}>
+            <strong>Filter types</strong>
+            <div>
+              {availableTypes.map(t => (
+                <label key={t} style={{ display: 'inline-block', marginRight: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedTypes.includes(t)}
+                    onChange={e => {
+                      if (e.target.checked) setSelectedTypes(prev => [...prev, t]);
+                      else setSelectedTypes(prev => prev.filter(x => x !== t));
+                    }}
+                  /> {t}
+                </label>
+              ))}
+            </div>
+          </div>
           {locations.map(l => (
             <div key={l.id} className={`list-item ${l.id === selectedId ? 'active' : ''}`} onClick={() => setSelectedId(l.id)}>
               <span>{l.name}</span>
@@ -65,7 +145,14 @@ const App: React.FC = () => {
         {selectedId && <LocationDetails name={selectedName} metrics={metrics} />}
       </div>
       <div className="map-container">
-        <MapView locations={locations} onSelect={(id) => setSelectedId(id)} selectedId={selectedId} />
+        {/* Only pass locations that match selected types. If none selected, pass empty array so no markers render. */}
+        { /* compute filtered list here to keep MapView simple */ }
+        <MapView
+          locations={selectedTypes.length === 0 ? [] : locations.filter(l => selectedTypes.includes(l.type))}
+          onSelect={(id) => setSelectedId(id)}
+          selectedId={selectedId}
+          onVisibleChange={setVisibleIds}
+        />
       </div>
     </div>
   );

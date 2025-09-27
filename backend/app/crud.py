@@ -7,6 +7,12 @@ from . import models
 def get_locations(session: Session):
     return session.scalars(select(models.Location)).all()
 
+
+def get_location_types(session: Session) -> list[str]:
+    """Return a list of distinct values in the Location.type column."""
+    stmt = select(models.Location.type).distinct().order_by(models.Location.type)
+    return [row[0] for row in session.execute(stmt).all()]
+
 def get_location(session: Session, location_id: int):
     return session.get(models.Location, location_id)
 
@@ -50,3 +56,17 @@ def compute_intensity(count: int) -> float:
     # Simple heuristic: normalize against a rough maximum and clamp
     norm = min(count / 2000.0, 1.0)
     return round(norm, 3)
+
+
+def get_metrics_for_type(session: Session, type_value: str, since: datetime):
+    """Return aggregated metrics (sum of counts) per timestamp for all locations of a given type."""
+    stmt = (
+        select(models.Metric.timestamp, func.sum(models.Metric.count).label('count'))
+        .join(models.Location, models.Metric.location_id == models.Location.id)
+        .where(models.Location.type == type_value, models.Metric.timestamp >= since)
+        .group_by(models.Metric.timestamp)
+        .order_by(models.Metric.timestamp.asc())
+    )
+    rows = session.execute(stmt).all()
+    # rows are tuples (timestamp, count)
+    return [ {'timestamp': r[0], 'count': int(r[1] or 0)} for r in rows ]

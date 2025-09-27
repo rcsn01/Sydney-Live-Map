@@ -19,3 +19,13 @@ export async function fetchMetrics(id: number, hours = 24): Promise<MetricPoint[
   const res = await axios.get(`${API_BASE}/locations/${id}/metrics`, { params: { hours } });
   return res.data;
 }
+
+export async function fetchLocationTypes(): Promise<string[]> {
+  const res = await axios.get(`${API_BASE}/location-types`);
+  return res.data;
+}
+
+export async function fetchMetricsByType(type: string, hours = 24): Promise<MetricPoint[]> {
+  const res = await axios.get(`${API_BASE}/metrics`, { params: { type, hours } });
+  return res.data;
+}

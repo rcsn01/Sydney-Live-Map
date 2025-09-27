@@ -51,3 +51,18 @@ def location_metrics(location_id: int, hours: int = 24, db: Session = Depends(ge
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     metrics = crud.get_metrics_for_location(db, location_id, since)
     return metrics
+
+
+@app.get(f"{API_PREFIX}/metrics")
+def metrics_by_type(type: str, hours: int = 24, db: Session = Depends(get_db)):
+    """Return aggregated metrics (sum of counts) per timestamp for all locations matching the given type."""
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = crud.get_metrics_for_type(db, type, since)
+    return rows
+
+
+@app.get(f"{API_PREFIX}/location-types", response_model=list[str])
+def location_types(db: Session = Depends(get_db)):
+    """Return all distinct values of the `type` column from the locations table."""
+    types = crud.get_location_types(db)
+    return types
