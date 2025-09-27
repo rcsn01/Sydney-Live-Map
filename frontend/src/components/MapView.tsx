@@ -94,11 +94,12 @@ const MapView: React.FC<Props> = ({ locations, onSelect, selectedId, onVisibleCh
           }).addTo(map);
           marker.bindTooltip(`${loc.name}<br/>Intensity: ${(loc.intensity * 100).toFixed(0)}%`);
           marker.on('click', () => onSelect(loc.id));
-          const el = (marker as any)._path as SVGElement | undefined;
-          if (el) {
-            el.classList.add('pulse');
-            el.style.animationDuration = opts._animDuration;
-          }
+          // no pulsing animation: keep marker static
+          // const el = (marker as any)._path as SVGElement | undefined;
+          // if (el) {
+          //   el.classList.add('pulse');
+          //   el.style.animationDuration = opts._animDuration;
+          // }
           markersRef.current[loc.id] = marker;
         }
       });
