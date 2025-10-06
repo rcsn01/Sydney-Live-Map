@@ -12,13 +12,18 @@ interface Props {
 
 const MapView: React.FC<Props> = ({ locations, onSelect, selectedId, onVisibleChange }) => {
   const mapRef = useRef<L.Map | null>(null);
+  const canvasRendererRef = useRef<L.Renderer | null>(null);
   // Keep markers keyed by location id so we can add/remove/update efficiently
   const markersRef = useRef<Record<number, L.CircleMarker>>({});
 
   useEffect(() => {
     if (mapRef.current) return; // init only once
-    const map = L.map('map').setView([-33.8688, 151.2093], 14);
+  // preferCanvas reduces SVG/DOM pressure when many markers are present
+  const map = L.map('map', { preferCanvas: true }).setView([-33.8688, 151.2093], 14);
     mapRef.current = map;
+
+  // create a single shared canvas renderer for performant circleMarker rendering
+  canvasRendererRef.current = L.canvas();
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
@@ -42,7 +47,8 @@ const MapView: React.FC<Props> = ({ locations, onSelect, selectedId, onVisibleCh
       radius,
       color: isSelected ? '#ff8800' : '#3388ff',
       weight: 1.5,
-      fillOpacity: 0.85,
+      // reduce opacity for non-selected markers to improve visual density
+      fillOpacity: isSelected ? 0.9 : 0.25,
       fillColor: isSelected ? '#ff8800' : '#3388ff',
       _animDuration: `${(1.8 - norm * 1.2).toFixed(2)}s`,
       _norm: norm
@@ -131,7 +137,8 @@ const MapView: React.FC<Props> = ({ locations, onSelect, selectedId, onVisibleCh
             color: opts.color,
             weight: opts.weight,
             fillOpacity: opts.fillOpacity,
-            fillColor: opts.fillColor
+            fillColor: opts.fillColor,
+            renderer: canvasRendererRef.current || undefined
           }).addTo(map);
           marker.bindTooltip(`${loc.name}<br/>Intensity: ${(loc.intensity * 100).toFixed(0)}%`);
           // click selection disabled: do not register marker.on('click')
