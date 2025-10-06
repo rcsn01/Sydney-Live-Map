@@ -14,17 +14,18 @@ const App: React.FC = () => {
   const [perLocationMetrics, setPerLocationMetrics] = useState<Record<number, MetricPoint[]>>({});
   const [selectedName, setSelectedName] = useState<string>('');
   const [snapshot, setSnapshot] = useState<string>('');
-  const [snapshotOffset, setSnapshotOffset] = useState<number>(0); // hours ago
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  // New state: explicit year/month/day selectors (UTC)
+  const [year, setYear] = useState<number>(currentYear);
+  const [month, setMonth] = useState<number>(now.getUTCMonth() + 1); // 1-12
+  const [day, setDay] = useState<number>(now.getUTCDate());
 
   // compute a Date for the current snapshot (or now) and a friendly UTC label
   const snapshotDate = snapshot ? new Date(snapshot) : new Date();
   const snapshotLabelHours = String(snapshotDate.getUTCHours()).padStart(2, '0');
   const snapshotLabelDate = snapshotDate.toISOString().slice(0, 10);
-  const hAgo = snapshotOffset;
-  const days = Math.floor(hAgo / 24);
-  const hours = hAgo % 24;
-  const agoLabel = hAgo === 0 ? 'now' : (days > 0 ? `${days}d ${hours}h ago` : `${hours}h ago`);
-  const snapshotLabel = `${snapshotLabelHours}:00 UTC — ${snapshotLabelDate} (${agoLabel})`;
+  const snapshotLabel = `${snapshotLabelHours}:00 UTC — ${snapshotLabelDate}`;
 
   // Load locations
   useEffect(() => {
@@ -32,6 +33,16 @@ const App: React.FC = () => {
     const interval = setInterval(() => fetchLocations(snapshot).then(setLocations).catch(console.error), 15000);
     return () => clearInterval(interval);
   }, [snapshot]);
+
+  // Update snapshot when year/month/day change. Keep selected hour from snapshotOffset if available,
+  // otherwise use 00:00 UTC for the date.
+  useEffect(() => {
+    // clamp day to valid days in month
+    const daysInMonth = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const d = Math.min(day, daysInMonth(year, month));
+    const dt = new Date(Date.UTC(year, month - 1, d, 0, 0, 0));
+    setSnapshot(dt.toISOString());
+  }, [year, month, day]);
 
   // Load available types once
   useEffect(() => {
@@ -49,7 +60,7 @@ const App: React.FC = () => {
         // Prefer cached per-location metrics if available
         const cached = perLocationMetrics[selectedId];
         if (cached) setMetrics(cached);
-        else fetchMetrics(selectedId, 24).then(setMetrics).catch(console.error);
+        else fetchMetrics(selectedId, 24, snapshot).then(setMetrics).catch(console.error);
       } else {
         // Clear metrics when selection is not visible or its type not selected
         setMetrics([]);
@@ -90,7 +101,7 @@ const App: React.FC = () => {
       setPerLocationMetrics(prev => {
         if (prev[loc.id]) return prev; // already have it
         // Kick off async fetch and optimistically return prev; fetched result will update state
-        fetchMetrics(loc.id, 24).then(data => {
+        fetchMetrics(loc.id, 24, snapshot).then(data => {
           setPerLocationMetrics(p => ({ ...p, [loc.id]: data }));
         }).catch(err => {
           console.error('failed to fetch metrics for location', loc.id, err);
@@ -104,16 +115,30 @@ const App: React.FC = () => {
     <div className="layout">
       <div className="sidebar">
         <h1>Sydney Live Map</h1>
-        <label>Time (UTC Hour Offset)</label>
-        <div className="time-row">
-          <input type="range" min={0} max={168} value={snapshotOffset} onChange={e => {
-            const offset = parseInt(e.target.value);
-            setSnapshotOffset(offset);
-            const now = Date.now();
-            const snap = new Date(now - offset * 60 * 60 * 1000);
-            setSnapshot(snap.toISOString());
-          }} />
-          <div className="time-display">{snapshotLabel}</div>
+        <div style={{ marginBottom: 8 }}>
+          <strong>Selected UTC snapshot</strong>
+          <div className="time-display" style={{ marginTop: 6 }}>{snapshotLabel}</div>
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <strong>Specific date (UTC)</strong>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+            <div>
+              <label>Year</label>
+              <input style={{ width: '100%' }} type="range" min={2000} max={currentYear} value={year} onChange={e => setYear(parseInt(e.target.value))} />
+              <div className="time-display">{year}</div>
+            </div>
+            <div>
+              <label>Month</label>
+              <input style={{ width: '100%' }} type="range" min={1} max={12} value={month} onChange={e => setMonth(parseInt(e.target.value))} />
+              <div className="time-display">{String(month).padStart(2,'0')}</div>
+            </div>
+            <div>
+              <label>Day</label>
+              <input style={{ width: '100%' }} type="range" min={1} max={31} value={day} onChange={e => setDay(parseInt(e.target.value))} />
+              <div className="time-display">{String(day).padStart(2,'0')}</div>
+            </div>
+          </div>
         </div>
         {/* chart is rendered inside LocationDetails when a location is selected */}
 

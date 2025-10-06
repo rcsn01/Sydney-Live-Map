@@ -15,8 +15,10 @@ export async function fetchLocation(id: number): Promise<Location> {
   return res.data;
 }
 
-export async function fetchMetrics(id: number, hours = 24): Promise<MetricPoint[]> {
-  const res = await axios.get(`${API_BASE}/locations/${id}/metrics`, { params: { hours } });
+export async function fetchMetrics(id: number, hours = 24, at?: string): Promise<MetricPoint[]> {
+  const params: Record<string, string | number> = { hours };
+  if (at) params.at = at;
+  const res = await axios.get(`${API_BASE}/locations/${id}/metrics`, { params });
   return res.data;
 }
 

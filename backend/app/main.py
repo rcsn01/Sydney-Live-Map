@@ -32,8 +32,8 @@ def health():
     return {"status": "ok"}
 
 @app.get(f"{API_PREFIX}/locations", response_model=list[schemas.LocationWithIntensity])
-def list_locations(at: datetime | None = None, db: Session = Depends(get_db)):
-    pairs = crud.latest_intensity_for_locations(db, at)
+def list_locations(at: datetime | None = None, type: str | None = None, db: Session = Depends(get_db)):
+    pairs = crud.latest_intensity_for_locations(db, at, type_value=type)
     return [schemas.LocationWithIntensity(**schemas.LocationBase.model_validate(loc).model_dump(), intensity=intensity) for loc, intensity in pairs]
 
 @app.get(f"{API_PREFIX}/locations/{{location_id}}", response_model=schemas.LocationBase)
@@ -44,12 +44,19 @@ def get_location(location_id: int, db: Session = Depends(get_db)):
     return loc
 
 @app.get(f"{API_PREFIX}/locations/{{location_id}}/metrics", response_model=list[schemas.MetricPoint])
-def location_metrics(location_id: int, hours: int = 24, db: Session = Depends(get_db)):
+def location_metrics(location_id: int, hours: int = 24, at: datetime | None = None, db: Session = Depends(get_db)):
     loc = crud.get_location(db, location_id)
     if not loc:
         raise HTTPException(status_code=404, detail="Location not found")
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    metrics = crud.get_metrics_for_location(db, location_id, since)
+    # If `at` is provided, return metrics whose timestamps are between (at - hours) and at.
+    # Otherwise preserve previous behaviour: metrics for the last `hours` up to now.
+    if at is None:
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        until = None
+    else:
+        until = at
+        since = at - timedelta(hours=hours)
+    metrics = crud.get_metrics_for_location(db, location_id, since, until=until)
     return metrics
 
 
