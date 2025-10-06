@@ -27,7 +27,3 @@ export async function fetchLocationTypes(): Promise<string[]> {
   return res.data;
 }
 
-export async function fetchMetricsByType(type: string, hours = 24): Promise<MetricPoint[]> {
-  const res = await axios.get(`${API_BASE}/metrics`, { params: { type, hours } });
-  return res.data;
-}

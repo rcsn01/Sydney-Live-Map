@@ -160,12 +160,6 @@ const App: React.FC = () => {
               ))}
             </div>
           </div>
-          {locations.map(l => (
-            <div key={l.id} className={`list-item ${l.id === selectedId ? 'active' : ''}`} onClick={() => setSelectedId(l.id)}>
-              <span>{l.name}</span>
-              <span className="pill">{(l.intensity * 100).toFixed(0)}%</span>
-            </div>
-          ))}
         </div>
         {selectedId && <LocationDetails name={selectedName} metrics={metrics} />}
       </div>

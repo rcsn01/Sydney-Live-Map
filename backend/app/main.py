@@ -27,10 +27,6 @@ def on_startup():
         with next(get_db()) as session:
             seed.seed_data(session)
 
-@app.get(f"{API_PREFIX}/health")
-def health():
-    return {"status": "ok"}
-
 @app.get(f"{API_PREFIX}/locations", response_model=list[schemas.LocationWithIntensity])
 def list_locations(at: datetime | None = None, type: str | None = None, db: Session = Depends(get_db)):
     pairs = crud.latest_intensity_for_locations(db, at, type_value=type)
@@ -60,12 +56,7 @@ def location_metrics(location_id: int, hours: int = 24, at: datetime | None = No
     return metrics
 
 
-@app.get(f"{API_PREFIX}/metrics")
-def metrics_by_type(type: str, hours: int = 24, db: Session = Depends(get_db)):
-    """Return aggregated metrics (sum of counts) per timestamp for all locations matching the given type."""
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    rows = crud.get_metrics_for_type(db, type, since)
-    return rows
+
 
 
 @app.get(f"{API_PREFIX}/location-types", response_model=list[str])

@@ -72,14 +72,5 @@ def compute_intensity(count: int) -> float:
 
 
 def get_metrics_for_type(session: Session, type_value: str, since: datetime):
-    """Return aggregated metrics (sum of counts) per timestamp for all locations of a given type."""
-    stmt = (
-        select(models.Metric.timestamp, func.sum(models.Metric.count).label('count'))
-        .join(models.Location, models.Metric.location_id == models.Location.id)
-        .where(models.Location.type == type_value, models.Metric.timestamp >= since)
-        .group_by(models.Metric.timestamp)
-        .order_by(models.Metric.timestamp.asc())
-    )
-    rows = session.execute(stmt).all()
-    # rows are tuples (timestamp, count)
-    return [ {'timestamp': r[0], 'count': int(r[1] or 0)} for r in rows ]
+    # Removed: aggregated metrics-by-type is no longer used by the frontend.
+    raise NotImplementedError("get_metrics_for_type has been removed; use per-location metrics endpoints instead")
