@@ -14,12 +14,15 @@ const App: React.FC = () => {
   const [perLocationMetrics, setPerLocationMetrics] = useState<Record<number, MetricPoint[]>>({});
   const [selectedName, setSelectedName] = useState<string>('');
   const [snapshot, setSnapshot] = useState<string>('');
+  // Track in-flight requests to prevent duplicate fetches
+  const fetchingRef = React.useRef<Set<number>>(new Set());
   const now = new Date();
   const currentYear = now.getUTCFullYear();
-  // New state: explicit year/month/day selectors (UTC)
+  // New state: explicit year/month/day/hour selectors (UTC)
   const [year, setYear] = useState<number>(currentYear);
   const [month, setMonth] = useState<number>(now.getUTCMonth() + 1); // 1-12
   const [day, setDay] = useState<number>(now.getUTCDate());
+  const [hour, setHour] = useState<number>(now.getUTCHours());
 
   // compute a Date for the current snapshot (or now) and a friendly UTC label
   const snapshotDate = snapshot ? new Date(snapshot) : new Date();
@@ -34,15 +37,14 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [snapshot]);
 
-  // Update snapshot when year/month/day change. Keep selected hour from snapshotOffset if available,
-  // otherwise use 00:00 UTC for the date.
+  // Update snapshot when year/month/day/hour change.
   useEffect(() => {
     // clamp day to valid days in month
     const daysInMonth = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
     const d = Math.min(day, daysInMonth(year, month));
-    const dt = new Date(Date.UTC(year, month - 1, d, 0, 0, 0));
+    const dt = new Date(Date.UTC(year, month - 1, d, hour, 0, 0));
     setSnapshot(dt.toISOString());
-  }, [year, month, day]);
+  }, [year, month, day, hour]);
 
   // Load available types once
   useEffect(() => {
@@ -95,21 +97,26 @@ const App: React.FC = () => {
       return copy;
     });
 
-    // Fetch metrics for each wanted location (if not already cached)
+    // Fetch metrics for each wanted location (if not already cached AND not currently fetching)
     visibleLocations.forEach(loc => {
-      // Use functional state read to avoid stale closure over perLocationMetrics
-      setPerLocationMetrics(prev => {
-        if (prev[loc.id]) return prev; // already have it
-        // Kick off async fetch and optimistically return prev; fetched result will update state
-        fetchMetrics(loc.id, 24, snapshot).then(data => {
-          setPerLocationMetrics(p => ({ ...p, [loc.id]: data }));
-        }).catch(err => {
-          console.error('failed to fetch metrics for location', loc.id, err);
-        });
-        return prev;
+      // Skip if already cached or currently fetching
+      if (perLocationMetrics[loc.id] || fetchingRef.current.has(loc.id)) {
+        return;
+      }
+
+      // Mark as fetching
+      fetchingRef.current.add(loc.id);
+
+      // Kick off async fetch
+      fetchMetrics(loc.id, 24, snapshot).then(data => {
+        setPerLocationMetrics(p => ({ ...p, [loc.id]: data }));
+        fetchingRef.current.delete(loc.id);
+      }).catch(err => {
+        console.error('failed to fetch metrics for location', loc.id, err);
+        fetchingRef.current.delete(loc.id);
       });
     });
-  }, [visibleIds, selectedTypes, locations]);
+  }, [visibleIds, selectedTypes, locations, snapshot, perLocationMetrics]);
 
   return (
     <div className="layout">
@@ -137,6 +144,11 @@ const App: React.FC = () => {
               <label>Day</label>
               <input style={{ width: '100%' }} type="range" min={1} max={31} value={day} onChange={e => setDay(parseInt(e.target.value))} />
               <div className="time-display">{String(day).padStart(2,'0')}</div>
+            </div>
+            <div>
+              <label>Hour</label>
+              <input style={{ width: '100%' }} type="range" min={0} max={23} value={hour} onChange={e => setHour(parseInt(e.target.value))} />
+              <div className="time-display">{String(hour).padStart(2,'0')}:00</div>
             </div>
           </div>
         </div>
